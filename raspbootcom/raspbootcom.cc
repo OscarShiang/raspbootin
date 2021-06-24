@@ -85,6 +85,10 @@ struct UnixError : public std::system_error::system_error {
 
 // send kernel to rpi
 void send_kernel(int fd, const char *file) {
+  // preserve original flags
+  int oflags = Unix::check("get serial port flags", fcntl(fd, F_GETFL, 0));
+  UnixError::check("set serial port to blocking", fcntl(fd, F_SETFL, oflags ^ O_NONBLOCK));
+
   // Open file
   int file_fd = UnixError::check("open kernel",
                                  open(file, O_RDONLY));
@@ -118,6 +122,7 @@ void send_kernel(int fd, const char *file) {
   if (ok_buf[0] != 'O' || ok_buf[1] != 'K') {
     fprintf(stderr, "error after sending size, got '%c%c' [0x%02x 0x%02x]\n\r",
             ok_buf[0], ok_buf[1], uint8_t(ok_buf[0]), uint8_t(ok_buf[1]));
+    Unix::check("restore serial port flags", fcntl(fd, F_SETFL, orig_flags));
     return;
   }
 
@@ -135,6 +140,7 @@ void send_kernel(int fd, const char *file) {
     }
   }
 
+  Unix::check("restore serial port flags", fcntl(fd, F_SETFL, orig_flags));
   fprintf(stderr, "### finished sending\n\r");
 }
 
